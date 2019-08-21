@@ -21,7 +21,11 @@ import numpy as np
 ''''
 是一种服务端与客户端的形式；服务端发起服务，客户去访问（以特定的链接加参数才可以）
 '''
-
+def load_ml():
+    ##模型知识在启动服务器时被加载一次，然后一直在内在中等待使用
+    print('哈哈')
+    return {'hh':'哈哈'}
+content1=load_ml()
 
 
 #服务端获取客户端发来的json数据
@@ -186,7 +190,7 @@ def add_message(uuid):
         # # final_results={}
         # # final_results['ddd']=results
         # # logger.info('final_results:{}'.format(final_results))
-        return jsonify(content)
+        return jsonify(content1)
         # return jsonify(content)
   except Exception as e:
          print(e)

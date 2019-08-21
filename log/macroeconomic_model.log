@@ -4,3 +4,19 @@
 {2019-07-31 11:36:30.182} [3832] INFO - 将获取的json数据转为dataframe数据框
 {2019-07-31 11:36:30.182} [3832] INFO - type content<class 'dict'>
 {2019-07-31 11:36:30.307} [9112] INFO - from server response:{'TRIAL_800_QUERY_0': '踢爆', 'TRIAL_800_QUERY_1': '4分钟内不得进行配对(每次中离+4分钟', 'TRIAL_800_QUERY_2': '水枪、小枪、锤子或是水炸弹', 'TRIAL_800_QUERY_3': '可选择经典、热血、狙击等模式进行游戏。'}
+{2019-07-31 16:09:09.170} [4836] INFO - host:localhost,port:28095
+{2019-07-31 16:09:38.484} [4912] INFO - 开始进入模型，服务端获取数据
+{2019-07-31 16:09:38.484} [4912] INFO - from client content:{'TRIAL_800_QUERY_0': '踢爆', 'TRIAL_800_QUERY_1': '4分钟内不得进行配对(每次中离+4分钟', 'TRIAL_800_QUERY_2': '水枪、小枪、锤子或是水炸弹', 'TRIAL_800_QUERY_3': '可选择经典、热血、狙击等模式进行游戏。'}
+{2019-07-31 16:09:38.484} [4912] INFO - 将获取的json数据转为dataframe数据框
+{2019-07-31 16:09:38.484} [4912] INFO - type content<class 'dict'>
+{2019-07-31 16:09:38.484} [8780] INFO - from server response:{'hh': '哈哈'}
+{2019-07-31 16:09:52.369} [6028] INFO - 开始进入模型，服务端获取数据
+{2019-07-31 16:09:52.369} [6028] INFO - from client content:{'TRIAL_800_QUERY_0': '踢爆', 'TRIAL_800_QUERY_1': '4分钟内不得进行配对(每次中离+4分钟', 'TRIAL_800_QUERY_2': '水枪、小枪、锤子或是水炸弹', 'TRIAL_800_QUERY_3': '可选择经典、热血、狙击等模式进行游戏。'}
+{2019-07-31 16:09:52.369} [6028] INFO - 将获取的json数据转为dataframe数据框
+{2019-07-31 16:09:52.369} [6028] INFO - type content<class 'dict'>
+{2019-07-31 16:09:52.369} [4604] INFO - from server response:{'hh': '哈哈'}
+{2019-07-31 16:09:58.325} [5572] INFO - 开始进入模型，服务端获取数据
+{2019-07-31 16:09:58.325} [5572] INFO - from client content:{'TRIAL_800_QUERY_0': '踢爆', 'TRIAL_800_QUERY_1': '4分钟内不得进行配对(每次中离+4分钟', 'TRIAL_800_QUERY_2': '水枪、小枪、锤子或是水炸弹', 'TRIAL_800_QUERY_3': '可选择经典、热血、狙击等模式进行游戏。'}
+{2019-07-31 16:09:58.325} [5572] INFO - 将获取的json数据转为dataframe数据框
+{2019-07-31 16:09:58.325} [5572] INFO - type content<class 'dict'>
+{2019-07-31 16:09:58.325} [2228] INFO - from server response:{'hh': '哈哈'}
