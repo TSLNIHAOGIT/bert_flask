@@ -7,10 +7,12 @@ sys.path.insert(0,os.path.abspath(os.path.join(os.path.dirname(__file__),'..')))
 
 def post_processing(post_server=True,server_name=None,port=None,data=None):
     if post_server:
+        ##服务器上ip和端口绑定
         ###安捷地址将服务器ip+端口（8888）映射成一个了，
         url='http://jupyter.test.anjie.superlucy.net:8080/api/ml/bertQA/{}'.format(server_name)
         #url='http://apis.customs.dev4.amiintellect.com/api/ml/bertQA/{}'.format(server_name)
     else:
+        #需要自己加端口
         url = 'http://localhost:{}/api/ml/bertQA/{}'.format(port,server_name)
     res = requests.post(url,json=data)
     if res.ok:
