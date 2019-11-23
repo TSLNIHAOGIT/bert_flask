@@ -418,7 +418,7 @@ def convert_single_example(ex_index, example, label_list, max_seq_length,
   # `type=1` were learned during pre-training and are added to the wordpiece
   # embedding vector (and position vector). This is not *strictly* necessary
   # since the [SEP] token unambiguously separates the sequences, but it makes
-  # it easier for the model to learn the concept of sequences.
+  # it easier for the model to learn the concept of sequences.（就像翻译模型加个开始和介绍一样方便学习）
   #
   # For classification tasks, the first vector (corresponding to [CLS]) is
   # used as the "sentence vector". Note that this only makes sense because
@@ -433,6 +433,9 @@ def convert_single_example(ex_index, example, label_list, max_seq_length,
   tokens.append("[SEP]")
   segment_ids.append(0)
 
+
+##句子b存在时，将b的tokens也加上，两个句子中间是用sep隔开的##这里要看模型在预训练时是否句子a是query,句子b是k和v??
+##感觉还是不理解bert是如何预训练语言模型的？
   if tokens_b:
     for token in tokens_b:
       tokens.append(token)

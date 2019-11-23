@@ -115,6 +115,11 @@ class BertModel(object):
   input_mask = tf.constant([[1, 1, 1], [1, 1, 0]])
   token_type_ids = tf.constant([[0, 0, 1], [0, 2, 0]])
 
+  ##与keras_bert对应关系
+  ##input_ids 对应indices
+  ##tolen_type_ids对应segments
+  ##其实还可以输入input_mask
+
   config = modeling.BertConfig(vocab_size=32000, hidden_size=512,
     num_hidden_layers=8, num_attention_heads=6, intermediate_size=1024)
 
@@ -850,18 +855,22 @@ def transformer_model(input_tensor,
         else:
           # In the case where we have other sequences, we just concatenate
           # them to the self-attention head before the projection.
+          ##应该是多个头进行拼接，后面接全连接层获取Z
           attention_output = tf.concat(attention_heads, axis=-1)
 
         # Run a linear projection of `hidden_size` then add a residual
         # with `layer_input`.
+        ##后面接全连接层获取Z，至此Slef-attention过程结束
         with tf.variable_scope("output"):
           attention_output = tf.layers.dense(
               attention_output,
               hidden_size,
               kernel_initializer=create_initializer(initializer_range))
+          ##下面是add&normalize过程，前面都加了dropout
           attention_output = dropout(attention_output, hidden_dropout_prob)
           attention_output = layer_norm(attention_output + layer_input)
 
+      ##再加个全连接层
       # The activation is only applied to the "intermediate" hidden layer.
       with tf.variable_scope("intermediate"):
         intermediate_output = tf.layers.dense(
@@ -869,7 +878,7 @@ def transformer_model(input_tensor,
             intermediate_size,
             activation=intermediate_act_fn,
             kernel_initializer=create_initializer(initializer_range))
-
+      ##再次做个add&nomalize整个transfomer结构结束
       # Down-project back to `hidden_size` then add the residual.
       with tf.variable_scope("output"):
         layer_output = tf.layers.dense(

@@ -35,19 +35,19 @@ FLAGS = flags.FLAGS
 
 ## Required parameters
 flags.DEFINE_string(
-    "bert_config_file", None,
+    "bert_config_file", 'chinese_L-12_H-768_A-12/bert_config.json',
     "The config json file corresponding to the pre-trained BERT model. "
     "This specifies the model architecture.")
 
-flags.DEFINE_string("vocab_file", None,
+flags.DEFINE_string("vocab_file", 'chinese_L-12_H-768_A-12/vocab.txt',
                     "The vocabulary file that the BERT model was trained on.")
 
 flags.DEFINE_string(
-    "output_dir", None,
+    "output_dir", 'output',
     "The output directory where the model checkpoints will be written.")
 
 ## Other parameters
-flags.DEFINE_string("train_file", None,
+flags.DEFINE_string("train_file", 'cmrc2018_train.json',
                     "SQuAD json for training. E.g., train-v1.1.json")
 
 flags.DEFINE_string(
@@ -79,7 +79,7 @@ flags.DEFINE_integer(
     "The maximum number of tokens for the question. Questions longer than "
     "this will be truncated to this length.")
 
-flags.DEFINE_bool("do_train", False, "Whether to run training.")
+flags.DEFINE_bool("do_train", True, "Whether to run training.")
 
 flags.DEFINE_bool("do_predict", False, "Whether to run eval on the dev set.")
 
@@ -156,7 +156,6 @@ flags.DEFINE_float(
 
 class SquadExample(object):
   """A single training/test example for simple sequence classification.
-
      For examples without an answer, the start and end position are -1.
   """
 
@@ -328,7 +327,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
       for sub_token in sub_tokens:
         tok_to_orig_index.append(i)
         all_doc_tokens.append(sub_token)
-    ## 下面这一段是得到通过model.tokenizer分词之后的答案所在位置
+
     tok_start_position = None
     tok_end_position = None
     if is_training and example.is_impossible:
@@ -558,8 +557,6 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
       token_type_ids=segment_ids,
       use_one_hot_embeddings=use_one_hot_embeddings)
 
-  #self.sequence_output = self.all_encoder_layers[-1]
-  #取最后一层（batch_size，seq_length，hidden_size）
   final_hidden = model.get_sequence_output()
 
   final_hidden_shape = modeling.get_shape_list(final_hidden, expected_rank=3)
@@ -585,10 +582,6 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
   unstacked_logits = tf.unstack(logits, axis=0)
 
   (start_logits, end_logits) = (unstacked_logits[0], unstacked_logits[1])
-
-  ###如果这里只想做一个填空形式，例如只判断某个词是否为开始位置
-  ###可以加个全连接层[hidden_size,1],相乘后得到[batch_size, seq_length, 1],sequeeze去掉维度为1的那个维度；
-  ###最终得到[batch_size, seq_length]就可以用多分类判断seq_length的每个位置是否为答案的位置
 
   return (start_logits, end_logits)
 
@@ -1220,72 +1213,94 @@ def main(_):
         drop_remainder=True)
     estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
 
-  if FLAGS.do_predict:
-    eval_examples = read_squad_examples(
-        input_file=FLAGS.predict_file, is_training=False)
+  # if FLAGS.do_predict:
+  #   eval_examples = read_squad_examples(
+  #       input_file=FLAGS.predict_file, is_training=False)
+  #
+  #   eval_writer = FeatureWriter(
+  #       filename=os.path.join(FLAGS.output_dir, "eval.tf_record"),
+  #       is_training=False)
+  #   eval_features = []
+  #
+  #   def append_feature(feature):
+  #     eval_features.append(feature)
+  #     eval_writer.process_feature(feature)
+  #
+  #   convert_examples_to_features(
+  #       examples=eval_examples,
+  #       tokenizer=tokenizer,
+  #       max_seq_length=FLAGS.max_seq_length,
+  #       doc_stride=FLAGS.doc_stride,
+  #       max_query_length=FLAGS.max_query_length,
+  #       is_training=False,
+  #       output_fn=append_feature)
+  #   eval_writer.close()
+  #
+  #   tf.logging.info("***** Running predictions *****")
+  #   tf.logging.info("  Num orig examples = %d", len(eval_examples))
+  #   tf.logging.info("  Num split examples = %d", len(eval_features))
+  #   tf.logging.info("  Batch size = %d", FLAGS.predict_batch_size)
+  #
+  #   all_results = []
+  #
+  #   predict_input_fn = input_fn_builder(
+  #       input_file=eval_writer.filename,
+  #       seq_length=FLAGS.max_seq_length,
+  #       is_training=False,
+  #       drop_remainder=False)
+  #
+  #   # If running eval on the TPU, you will need to specify the number of
+  #   # steps.
+  #   all_results = []
+  #   for result in estimator.predict(
+  #       predict_input_fn, yield_single_examples=True):
+  #     if len(all_results) % 1000 == 0:
+  #       tf.logging.info("Processing example: %d" % (len(all_results)))
+  #     unique_id = int(result["unique_ids"])
+  #     start_logits = [float(x) for x in result["start_logits"].flat]
+  #     end_logits = [float(x) for x in result["end_logits"].flat]
+  #     all_results.append(
+  #         RawResult(
+  #             unique_id=unique_id,
+  #             start_logits=start_logits,
+  #             end_logits=end_logits))
+  #
+  #   output_prediction_file = os.path.join(FLAGS.output_dir, "predictions.json")
+  #   output_nbest_file = os.path.join(FLAGS.output_dir, "nbest_predictions.json")
+  #   output_null_log_odds_file = os.path.join(FLAGS.output_dir, "null_odds.json")
+  #
+  #   write_predictions(eval_examples, eval_features, all_results,
+  #                     FLAGS.n_best_size, FLAGS.max_answer_length,
+  #                     FLAGS.do_lower_case, output_prediction_file,
+  #                     output_nbest_file, output_null_log_odds_file)
+def process_data():
+    tf.logging.set_verbosity(tf.logging.INFO)
 
-    eval_writer = FeatureWriter(
-        filename=os.path.join(FLAGS.output_dir, "eval.tf_record"),
-        is_training=False)
-    eval_features = []
+    bert_config = modeling.BertConfig.from_json_file(FLAGS.bert_config_file)
 
-    def append_feature(feature):
-      eval_features.append(feature)
-      eval_writer.process_feature(feature)
+    validate_flags_or_throw(bert_config)
 
-    convert_examples_to_features(
-        examples=eval_examples,
-        tokenizer=tokenizer,
-        max_seq_length=FLAGS.max_seq_length,
-        doc_stride=FLAGS.doc_stride,
-        max_query_length=FLAGS.max_query_length,
-        is_training=False,
-        output_fn=append_feature)
-    eval_writer.close()
+    tf.gfile.MakeDirs(FLAGS.output_dir)
 
-    tf.logging.info("***** Running predictions *****")
-    tf.logging.info("  Num orig examples = %d", len(eval_examples))
-    tf.logging.info("  Num split examples = %d", len(eval_features))
-    tf.logging.info("  Batch size = %d", FLAGS.predict_batch_size)
+    tokenizer = tokenization.FullTokenizer(
+        vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
 
-    all_results = []
-
-    predict_input_fn = input_fn_builder(
-        input_file=eval_writer.filename,
-        seq_length=FLAGS.max_seq_length,
-        is_training=False,
-        drop_remainder=False)
-
-    # If running eval on the TPU, you will need to specify the number of
-    # steps.
-    all_results = []
-    for result in estimator.predict(
-        predict_input_fn, yield_single_examples=True):
-      if len(all_results) % 1000 == 0:
-        tf.logging.info("Processing example: %d" % (len(all_results)))
-      unique_id = int(result["unique_ids"])
-      start_logits = [float(x) for x in result["start_logits"].flat]
-      end_logits = [float(x) for x in result["end_logits"].flat]
-      all_results.append(
-          RawResult(
-              unique_id=unique_id,
-              start_logits=start_logits,
-              end_logits=end_logits))
-
-    output_prediction_file = os.path.join(FLAGS.output_dir, "predictions.json")
-    output_nbest_file = os.path.join(FLAGS.output_dir, "nbest_predictions.json")
-    output_null_log_odds_file = os.path.join(FLAGS.output_dir, "null_odds.json")
-
-    write_predictions(eval_examples, eval_features, all_results,
-                      FLAGS.n_best_size, FLAGS.max_answer_length,
-                      FLAGS.do_lower_case, output_prediction_file,
-                      output_nbest_file, output_null_log_odds_file)
-
+    input_file='cmrc2018_train.json'
+    train_examples =read_squad_examples(input_file, is_training=True)
+    # all_features=convert_examples_to_features(
+    #     examples=train_examples,
+    #     tokenizer=tokenizer,
+    #     max_seq_length=FLAGS.max_seq_length,
+    #     doc_stride=FLAGS.doc_stride,
+    #     max_query_length=FLAGS.max_query_length,
+    #     is_training=True,
+    #     )
+    # print(all_features)
 
 if __name__ == "__main__":
-  # flags.mark_flag_as_required("vocab_file")
-  # flags.mark_flag_as_required("bert_config_file")
-  # flags.mark_flag_as_required("output_dir")
-  # tf.app.run()
+  flags.mark_flag_as_required("vocab_file")
+  flags.mark_flag_as_required("bert_config_file")
+  flags.mark_flag_as_required("output_dir")
+  tf.app.run()
 
-  read_squad_examples(input_file=None,)
+  # process_data()
