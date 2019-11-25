@@ -465,8 +465,8 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
           doc_span_index=doc_span_index,
           tokens=tokens,#输入 [['CLS'] query_tokens ['SEP'] doc_span_text ['SEP']]，
           ###如当前token index=142,计算可得对应原始token的index=123;len(doc_tokens)不断变化
-          token_to_orig_map=token_to_orig_map,#tokens中每个单词对应最原始tokens单词（未sub_token）的index
-          token_is_max_context=token_is_max_context,#tokens中每个单词索引对应的最佳上下文doc_span的index
+          token_to_orig_map=token_to_orig_map,#tokens中每个单词对应最原始tokens单词（未sub_token）的index::训练时似乎没用到，在预测时才使用
+          token_is_max_context=token_is_max_context,#tokens中每个单词索引对应的最佳上下文doc_span的index::训练时似乎没用到，在预测时才使用
           input_ids=input_ids,#tokenizer.convert_tokens_to_ids(tokens) ,根据tokens得到对应的id
           input_mask=input_mask,#input_ids对应的mask矩阵
           segment_ids=segment_ids,#与input_ids类似，属于第一句(对应0)还是第二句对应的id（对应1）
@@ -518,6 +518,13 @@ def _improve_answer_span(doc_tokens, input_start, input_end, tokenizer,
 
 
 def _check_is_max_context(doc_spans, cur_span_index, position):
+  '''
+  判断当前doc_span是否为当前词的最佳上下文，结果返回布尔值与词对应
+  :param doc_spans:
+  :param cur_span_index:
+  :param position:
+  :return:
+  '''
   """Check if this is the 'max context' doc span for the token."""
 
   # Because of the sliding window approach taken to scoring documents, a single
@@ -538,19 +545,24 @@ def _check_is_max_context(doc_spans, cur_span_index, position):
   # and 0 right context.
   best_score = None
   best_span_index = None
+  ##对应某一个词，将该examples中的所有doc_span都遍历一下
   for (span_index, doc_span) in enumerate(doc_spans):
     end = doc_span.start + doc_span.length - 1
+    ##只关注答案范围内的词
     if position < doc_span.start:
       continue
     if position > end:
       continue
+    #该词左边的上下文
     num_left_context = position - doc_span.start
     num_right_context = end - position
+    #计算得分
     score = min(num_left_context, num_right_context) + 0.01 * doc_span.length
     if best_score is None or score > best_score:
       best_score = score
       best_span_index = span_index
 
+  #将当前的doc_span_index与该词对应的最佳doc_span_index进行对比，结果返回布尔值
   return cur_span_index == best_span_index
 
 
@@ -777,6 +789,7 @@ def write_predictions(all_examples, all_features, all_results, n_best_size,
     min_null_feature_index = 0  # the paragraph slice with min mull score
     null_start_logit = 0  # the start logit at the slice with min null score
     null_end_logit = 0  # the end logit at the slice with min null score
+    #一个example可能解析出多个feature，下面对每个feature进行预测
     for (feature_index, feature) in enumerate(features):
       result = unique_id_to_result[feature.unique_id]
       start_indexes = _get_best_indexes(result.start_logits, n_best_size)
@@ -793,15 +806,20 @@ def write_predictions(all_examples, all_features, all_results, n_best_size,
         for end_index in end_indexes:
           # We could hypothetically create invalid predictions, e.g., predict
           # that the start of the span is in the question. We throw out all
-          # invalid predictions.
+          # invalid predictions.跨度起点在问题中肯定不对，至少要在context中
+
+          # 丢弃无效的 index 的情况：
+          # 预测到了 pad 位置、预测到了 非context 的位置
           if start_index >= len(feature.tokens):
             continue
           if end_index >= len(feature.tokens):
             continue
+          ##预测的index不在最原始token中（这里要看一下预测的index应该是和[[CLS] query [SEP] doc_span_text [SEP]]这个对应的）
           if start_index not in feature.token_to_orig_map:
             continue
           if end_index not in feature.token_to_orig_map:
             continue
+          # 当前span不是 start_index 的最大上下文 （？为什么不处理end_index）
           if not feature.token_is_max_context.get(start_index, False):
             continue
           if end_index < start_index:
