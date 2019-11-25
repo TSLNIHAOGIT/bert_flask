@@ -292,9 +292,11 @@ def read_squad_examples(input_file, is_training):
             end_position = -1
             orig_answer_text = ""
 
+        # 每个问题构造一个example,同一个上下文中有多个问题，要将上下文复制多次
+        ##所有段落，每个问题成为一个example，
         example = SquadExample(
             qas_id=qas_id,
-            question_text=question_text,
+            question_text=question_text,#与一个问题对应
             doc_tokens=doc_tokens,
             orig_answer_text=orig_answer_text,
             start_position=start_position,
@@ -311,8 +313,13 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
   """Loads a data file into a list of `InputBatch`s."""
 
   unique_id = 1000000000
-
+  '''
+  一个example只包含一个问题，以及该问题对应的上下文；同一个上下文中有多个问题时，将该上下文复制多次与问题进行对应。
+  所有的example组成examples
+  '''
+  ##遍历每个example中的问题
   for (example_index, example) in enumerate(examples):
+    #得到当前问题的tokens即query_tokens
     query_tokens = tokenizer.tokenize(example.question_text)
 
     if len(query_tokens) > max_query_length:
@@ -364,6 +371,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
 
     # 对于每个窗口 doc_span，构建拼接的输入 [['CLS'] query_tokens ['SEP'] doc_span_text ['SEP']]，
     # 用新的tokens=[]存放,最终作为一个新的feature
+    ##当前问题对应的上下文被分成多个doc_spans
     for (doc_span_index, doc_span) in enumerate(doc_spans):
       tokens = []
       token_to_orig_map = {}
@@ -371,6 +379,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
       segment_ids = []
       tokens.append("[CLS]")
       segment_ids.append(0)
+      #将问题的tokens与当前doc_span进行拼接
       for token in query_tokens:
         tokens.append(token)
         segment_ids.append(0)
@@ -827,6 +836,8 @@ def write_predictions(all_examples, all_features, all_results, n_best_size,
           length = end_index - start_index + 1
           if length > max_answer_length:
             continue
+
+          # # 暂存可能的 [start, end] 组合
           prelim_predictions.append(
               _PrelimPrediction(
                   feature_index=feature_index,
@@ -843,6 +854,11 @@ def write_predictions(all_examples, all_features, all_results, n_best_size,
               end_index=0,
               start_logit=null_start_logit,
               end_logit=null_end_logit))
+    # 对所有可能的 [start, end] 组合排序
+    # logit 的大小会用于 softmax 计算概率
+    # e^start_logit * e^end_logit = e^(start_logit+end_logit)
+    ##其实最终要用到softmax(start_logit)*softmax(end_logit)
+    ##开始概率位置和结束概率位置乘积最大
     prelim_predictions = sorted(
         prelim_predictions,
         key=lambda x: (x.start_logit + x.end_logit),
@@ -853,10 +869,12 @@ def write_predictions(all_examples, all_features, all_results, n_best_size,
 
     seen_predictions = {}
     nbest = []
+    # 选出前 n_best_size 得分的 [start, end] 组合
     for pred in prelim_predictions:
       if len(nbest) >= n_best_size:
         break
       feature = features[pred.feature_index]
+      # 对于 non-null 的 answer，从 tokens 恢复出 text
       if pred.start_index > 0:  # this is a non-null prediction
         tok_tokens = feature.tokens[pred.start_index:(pred.end_index + 1)]
         orig_doc_start = feature.token_to_orig_map[pred.start_index]
@@ -864,6 +882,7 @@ def write_predictions(all_examples, all_features, all_results, n_best_size,
         orig_tokens = example.doc_tokens[orig_doc_start:(orig_doc_end + 1)]
         tok_text = " ".join(tok_tokens)
 
+        # De-tokenize WordPieces 得到的是 BasicTokenizer 分词后的格式
         # De-tokenize WordPieces that have been split off.
         tok_text = tok_text.replace(" ##", "")
         tok_text = tok_text.replace("##", "")
@@ -903,6 +922,7 @@ def write_predictions(all_examples, all_features, all_results, n_best_size,
 
     assert len(nbest) >= 1
 
+    # 计算每个 [start, end] 组合的概率
     total_scores = []
     best_non_null_entry = None
     for entry in nbest:
@@ -924,9 +944,11 @@ def write_predictions(all_examples, all_features, all_results, n_best_size,
 
     assert len(nbest_json) >= 1
 
+    # 对于 v1，始终存在 answer，直接将得分最高的作为输出
     if not FLAGS.version_2_with_negative:
       all_predictions[example.qas_id] = nbest_json[0]["text"]
     else:
+
       # predict "" iff the null score - the score of best non-null > threshold
       score_diff = score_null - best_non_null_entry.start_logit - (
           best_non_null_entry.end_logit)
@@ -951,6 +973,12 @@ def write_predictions(all_examples, all_features, all_results, n_best_size,
 
 def get_final_text(pred_text, orig_text, do_lower_case):
   """Project the tokenized prediction back to the original text."""
+  '''
+  我们可以同时得到两种 answer 表示，一种是原文中的 tokens 直接恢复出来的 orig_text，
+  另一种是 wordPiece 的 subtokens 可以恢复出的更精确的 pred_text。
+   如果 pred_text 能在 orig_text 中定位/对齐到，那么输出更精确的 pred_text。如果因为分词过程带来的差异，
+   导致pred_text 在原文中恢复不出来，那么直接输出 pred_text。
+  '''
 
   # When we created the data, we kept track of the alignment between original
   # (whitespace tokenized) tokens and our WordPiece tokenized tokens. So
@@ -977,6 +1005,7 @@ def get_final_text(pred_text, orig_text, do_lower_case):
   # `pred_text` and `orig_text` to get a character-to-charcter alignment. This
   # can fail in certain cases in which case we just return `orig_text`.
 
+  # 将字符串 s 中的空格去掉得到 ns，并且建立 ns 索引到 s 索引的映射
   def _strip_spaces(text):
     ns_chars = []
     ns_to_s_map = collections.OrderedDict()
@@ -994,18 +1023,32 @@ def get_final_text(pred_text, orig_text, do_lower_case):
   # length, we assume the characters are one-to-one aligned.
   tokenizer = tokenization.BasicTokenizer(do_lower_case=do_lower_case)
 
+  # 举例：orig_text = '(NFL) for the 2015 season. The American'
+  #       tok_text = '( nfl ) for the 2015 season . the american'
+  #      pred_text = ') for the 2015 season . the american'
   tok_text = " ".join(tokenizer.tokenize(orig_text))
 
   start_position = tok_text.find(pred_text)
+
+  # pred_text 不在 BasicTokenizer 处理后的 orig_text 中
+  # pred_text 中有 '[UNK]'这样的情况需要返回 orig_text
+  # 举例：orig_text = '(/tᵻˈnɒfərə/; singular ctenophore,'
+  #       tok_text = '( / tᵻˈnɒfərə / ; singular ctenophore ,'
+  #      pred_text = '[UNK] / ; singular cteno'
   if start_position == -1:
     if FLAGS.verbose_logging:
       tf.logging.info(
           "Unable to find text: '%s' in '%s'" % (pred_text, orig_text))
     return orig_text
   end_position = start_position + len(pred_text) - 1
-
+  # 例 '(NFL)forthe2015season.TheAmerican'
   (orig_ns_text, orig_ns_to_s_map) = _strip_spaces(orig_text)
+  # 例 '(nfl)forthe2015season.theamerican'
   (tok_ns_text, tok_ns_to_s_map) = _strip_spaces(tok_text)
+  # BasicTokenizer 会去掉一些音节之类的符号，导致 orig_ns_text 和 tok_ns_text 不对齐
+  # 举例：
+  # orig_ns_text = 'dust".)ItofferedaclassiccurriculumontheEnglishuniversitymodel—​​manyleadersinthecolonyhadattendedtheUniversityofCambridge—​​butconformedPuritanism.'
+  # tok_ns_text =  'dust".)itofferedaclassiccurriculumontheenglishuniversitymodel—manyleadersinthecolonyhadattendedtheuniversityofcambridge—butconformedpuritanism.'
 
   if len(orig_ns_text) != len(tok_ns_text):
     if FLAGS.verbose_logging:
@@ -1013,6 +1056,7 @@ def get_final_text(pred_text, orig_text, do_lower_case):
                       orig_ns_text, tok_ns_text)
     return orig_text
 
+  # 将 pred_text 定位/对齐到 orig_text 中
   # We then project the characters in `pred_text` back to `orig_text` using
   # the character-to-character alignment.
   tok_s_to_ns_map = {}
@@ -1046,6 +1090,7 @@ def get_final_text(pred_text, orig_text, do_lower_case):
 
 
 def _get_best_indexes(logits, n_best_size):
+  '''将一个 logits 按照逆序排序，取出前 n 个值的索引'''
   """Get the n-best logits from a list."""
   index_and_score = sorted(enumerate(logits), key=lambda x: x[1], reverse=True)
 
