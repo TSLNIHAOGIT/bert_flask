@@ -798,7 +798,7 @@ def write_predictions(all_examples, all_features, all_results, n_best_size,
     min_null_feature_index = 0  # the paragraph slice with min mull score
     null_start_logit = 0  # the start logit at the slice with min null score
     null_end_logit = 0  # the end logit at the slice with min null score
-    #一个example可能解析出多个feature，下面对每个feature进行预测
+    #一个example可能解析出多个feature（与doc_span_index一一对应），下面对每个feature进行预测
     for (feature_index, feature) in enumerate(features):
       result = unique_id_to_result[feature.unique_id]
       start_indexes = _get_best_indexes(result.start_logits, n_best_size)
@@ -1368,6 +1368,34 @@ def process_data():
     #     )
     # print(all_features)
 
+
+'''
+对squad数据集的处理方法:
+1.构造example:
+一个example只包含一个问题以及该问题对应的上下文，同一个上下文有多个问题时要将该上下文复制多次与问题对应
+2.构造feature
+一个feature与doc_span_index对应，当一个问题对应的上下文太长时要进行doc_span处理，一个doc_span对应一个feature，
+即一条训练样例数据,一个example可对应多个feature
+
+对于某个上下文及其所有的问题,最终组成如下feature:(其中会对某些不和规范的doc_span对应的特征做特殊处理，
+例如不包括完整答案的doc_span，标记开始和结束位置index都为0，就是没答案时start_position = 0，end_position = 0)
+
+这样会新增很多条数据
+
+
+
+[['CLS'] query_tokens ['SEP'] doc_span_text ['SEP']]
+question1 —— >doc_span1
+question1 —— >doc_span2
+
+question2 —— >doc_span1
+question2 —— >doc_span2
+
+question3 —— >doc_span1
+question3 —— >doc_span2
+
+
+'''
 if __name__ == "__main__":
   flags.mark_flag_as_required("vocab_file")
   flags.mark_flag_as_required("bert_config_file")
