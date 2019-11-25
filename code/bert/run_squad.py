@@ -354,7 +354,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
     doc_spans = []
     start_offset = 0
     while start_offset < len(all_doc_tokens):
-      length = len(all_doc_tokens) - start_offset
+      length = len(all_doc_tokens) - start_offset# 剩余未划分成 doc_span 的 tokens 长度
       if length > max_tokens_for_doc:
         length = max_tokens_for_doc
       doc_spans.append(_DocSpan(start=start_offset, length=length))
@@ -362,6 +362,8 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
         break
       start_offset += min(length, doc_stride)
 
+    # 对于每个窗口 doc_span，构建拼接的输入 [['CLS'] query_tokens ['SEP'] doc_span_text ['SEP']]，
+    # 用新的tokens=[]存放,最终作为一个新的feature
     for (doc_span_index, doc_span) in enumerate(doc_spans):
       tokens = []
       token_to_orig_map = {}
@@ -411,6 +413,8 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
         doc_start = doc_span.start
         doc_end = doc_span.start + doc_span.length - 1
         out_of_span = False
+
+        ##doc_span不包括完整的答案；这里及以下注释在bert中
         if not (tok_start_position >= doc_start and
                 tok_end_position <= doc_end):
           out_of_span = True
@@ -418,8 +422,11 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
           start_position = 0
           end_position = 0
         else:
-          doc_offset = len(query_tokens) + 2
-          start_position = tok_start_position - doc_start + doc_offset
+          doc_offset = len(query_tokens) + 2# '[CLS]' query '[SEP]'
+          #构建拼接的输入[['CLS'] query_tokens['SEP']  doc_span_text['SEP']]
+          ##doc_start是每个doc_span起始点在all_doc_tokens中的index;
+          # tok_start_position是答案开始位置在在all_doc_tokens中的index
+          start_position = tok_start_position - doc_start + doc_offset# 在当前拼接的输入中的位置
           end_position = tok_end_position - doc_start + doc_offset
 
       if is_training and example.is_impossible:
@@ -456,14 +463,15 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
           unique_id=unique_id,
           example_index=example_index,
           doc_span_index=doc_span_index,
-          tokens=tokens,
-          token_to_orig_map=token_to_orig_map,
-          token_is_max_context=token_is_max_context,
-          input_ids=input_ids,
-          input_mask=input_mask,
-          segment_ids=segment_ids,
-          start_position=start_position,
-          end_position=end_position,
+          tokens=tokens,#输入 [['CLS'] query_tokens ['SEP'] doc_span_text ['SEP']]，
+          ###如当前token index=142,计算可得对应原始token的index=123;len(doc_tokens)不断变化
+          token_to_orig_map=token_to_orig_map,#tokens中每个单词对应最原始tokens单词（未sub_token）的index
+          token_is_max_context=token_is_max_context,#tokens中每个单词索引对应的最佳上下文doc_span的index
+          input_ids=input_ids,#tokenizer.convert_tokens_to_ids(tokens) ,根据tokens得到对应的id
+          input_mask=input_mask,#input_ids对应的mask矩阵
+          segment_ids=segment_ids,#与input_ids类似，属于第一句(对应0)还是第二句对应的id（对应1）
+          start_position=start_position,#答案在tokens中起始位置
+          end_position=end_position,#答案在tokens中结束位置
           is_impossible=example.is_impossible)
 
       # Run callback
